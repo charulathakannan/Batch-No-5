@@ -1,0 +1,236 @@
+#!/usr/bin/env python # coding: utf-8
+# # Import libraries # In[1]:
+
+
+import numpy as np import pandas as pd import seaborn as sns
+import matplotlib.pyplot as plt import tensorflow as tf
+import cv2
+
+
+# In[2]:
+ 
+
+
+from sklearn.model_selection import train_test_split from sklearn.metrics import confusion_matrix import itertools
+from keras.utils.np_utils import to_categorical from keras.models import Sequential
+from keras.callbacks import ModelCheckpoint
+from keras.preprocessing.image import ImageDataGenerator from sklearn.metrics import confusion_matrix
+import itertools
+
+
+# # Store every image in an array # In[3]:
+
+
+import os
+data_dir = (r'.\testing_images') categories = ['no', 'yes']
+for i in categories:
+path = os.path.join(data_dir, i) for img in os.listdir(path):
+img_array = cv2.imread(os.path.join(path,img))
+
+
+#
+# # Resize each image to same size for fast processing # In[5]:
+
+
+img_size = 128
+image_array = cv2.resize(img_array, (img_size,img_size))
+
+
+# In[6]:
+
+
+dno = cv2.imread('./testing_images/no/15_right.jpeg')
+ 
+dyes = cv2.imread('./testing_images/yes/352_left.jpeg')
+
+
+# In[7]:
+
+
+plt.rcParams["figure.figsize"] = (5,5) plt.imshow(dno)
+plt.axis('off')
+
+
+# In[8]:
+
+
+plt.rcParams["figure.figsize"] = (5,5) plt.imshow(dyes)
+plt.axis('off')
+
+
+# # Convert each image to grayscale and append into an array # In[10]:
+
+
+train_data = []
+
+for i in categories:
+train_path = os.path.join(data_dir,i) tag = categories.index(i)
+for img in os.listdir(train_path): try:
+image_arr = cv2.imread(os.path.join(train_path , img), cv2.IMREAD_GRAYSCALE) new_image_array = cv2.resize(image_arr, (img_size,img_size)) train_data.append([new_image_array , tag])
+except Exception as e: pass
+
+
+# # Split the features and target in to X and y # In[11]:
+ 
+
+
+X = []
+y = []
+for i,j in train_data: X.append(i) y.append(j)
+X = np.array(X).reshape(-1,img_size,img_size) print(X.shape)
+X = X/255.0
+X = X.reshape(-1,128,128,1)
+
+
+# # One-Hot encode the target column # In[12]:
+
+
+from keras.utils.np_utils import to_categorical y_enc = to_categorical(y, num_classes = 4)
+
+# In[13]:
+
+
+X_train , X_test, y_train, y_test = train_test_split(X , y_enc , test_size = 0.1, random_state = 42) X_train , X_val, y_train, y_val = train_test_split(X_train , y_train , test_size = 0.1, random_state
+= 42)
+
+
+# In[14]:
+
+
+from sklearn.metrics import confusion_matrix import itertools
+
+from keras.utils.np_utils import to_categorical from keras.models import Sequential
+from keras.layers import Dense, Dropout, Flatten, Conv2D, MaxPool2D
+ 
+from keras.optimizers import RMSprop,Adam
+from keras.preprocessing.image import ImageDataGenerator from keras.callbacks import ReduceLROnPlateau
+from keras.callbacks import EarlyStopping model = Sequential()
+
+model.add(Conv2D(filters = 64, kernel_size = (5,5),padding = 'Same', activation ='relu', input_shape = (128,128,1)))
+model.add(MaxPool2D(pool_size=(2,2))) model.add(Dropout(0.2))
+
+model.add(Conv2D(filters = 128, kernel_size = (3,3),padding = 'Same', activation ='relu')) model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
+model.add(Dropout(0.2))
+
+model.add(Conv2D(filters = 128, kernel_size = (3,3),padding = 'Same', activation ='relu')) model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
+model.add(Dropout(0.2))
+
+model.add(Conv2D(filters = 128, kernel_size = (2,2),padding = 'Same', activation ='relu')) model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
+model.add(Dropout(0.2))
+
+
+model.add(Conv2D(filters = 256, kernel_size = (2,2),padding = 'Same', activation ='relu')) model.add(MaxPool2D(pool_size=(2,2), strides=(2,2)))
+model.add(Dropout(0.2)) model.add(Flatten())
+model.add(Dense(1024, activation = "relu")) model.add(Dropout(0.5))
+
+model.add(Dense(4, activation = "softmax"))
+
+optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999)
+ 
+model.compile(optimizer = optimizer , loss = "categorical_crossentropy", metrics=["accuracy"]) epochs = 20
+es = EarlyStopping( monitor='val_acc', mode='max', patience = 3
+)
+
+batch_size = 16
+imggen = ImageDataGenerator( featurewise_center=False, samplewise_center=False, featurewise_std_normalization=False, samplewise_std_normalization=False, zca_whitening=False, rotation_range=0,
+zoom_range = 0, width_shift_range=0, height_shift_range=0, horizontal_flip=True, vertical_flip=False)
+
+
+# In[15]:
+
+
+from keras.callbacks import ModelCheckpoint
+
+checkpoint = ModelCheckpoint("models/model_weights.h5", monitor='val_acc', verbose=1, save_best_only=True, mode='max')
+callbacks_list = [checkpoint]
+
+imggen.fit(X_train)
+history = model.fit_generator(imggen.flow(X_train,y_train,batch_size = batch_size), epochs = epochs, validation_data = (X_val,y_val), steps_per_epoch = X_train.shape[0] // batch_size, callbacks=callbacks_list)
+ 
+
+
+# In[16]:
+
+
+# serialize model structure to JSON model_json = model.to_json()
+with open(r".\models\model.json", "w") as json_file: json_file.write(model_json)
+
+
+# In[17]:
+
+
+os.listdir(r"testing_images")
+
+
+# In[18]:
+
+
+import keras
+from keras.models import Sequential from keras.layers import Convolution2D from keras.layers import MaxPooling2D from keras.layers import Flatten
+from keras.layers import Dense from keras.layers import Dropout
+from keras.layers.normalization import BatchNormalization
+
+
+# In[19]:
+
+
+# Initializing the CNN classifier = Sequential()
+
+# Convolution Step 1
+classifier.add(Convolution2D(96, 11, strides = (4, 4), padding = 'valid', input_shape=(224, 224, 3), activation = 'relu'))
+ 
+
+# Max Pooling Step 1
+classifier.add(MaxPooling2D(pool_size = (2, 2), strides = (2, 2), padding = 'valid')) classifier.add(BatchNormalization())
+
+# Convolution Step 2
+classifier.add(Convolution2D(256, 11, strides = (1, 1), padding='valid', activation = 'relu'))
+
+# Max Pooling Step 2
+classifier.add(MaxPooling2D(pool_size = (2, 2), strides = (2, 2), padding='valid')) classifier.add(BatchNormalization())
+
+# Convolution Step 3
+classifier.add(Convolution2D(384, 3, strides = (1, 1), padding='valid', activation = 'relu')) classifier.add(BatchNormalization())
+
+# Convolution Step 4
+classifier.add(Convolution2D(384, 3, strides = (1, 1), padding='valid', activation = 'relu')) classifier.add(BatchNormalization())
+
+# Convolution Step 5
+classifier.add(Convolution2D(256, 3, strides=(1,1), padding='valid', activation = 'relu'))
+
+# Max Pooling Step 3
+classifier.add(MaxPooling2D(pool_size = (2, 2), strides = (2, 2), padding = 'valid')) classifier.add(BatchNormalization())
+
+# Flattening Step classifier.add(Flatten())
+
+# Full Connection Step
+classifier.add(Dense(units = 4096, activation = 'relu')) classifier.add(Dropout(0.4)) classifier.add(BatchNormalization()) classifier.add(Dense(units = 4096, activation = 'relu')) classifier.add(Dropout(0.4)) classifier.add(BatchNormalization()) classifier.add(Dense(units = 1000, activation = 'relu')) classifier.add(Dropout(0.2))
+ 
+classifier.add(BatchNormalization()) classifier.add(Dense(units = 38, activation = 'softmax')) classifier.summary()
+
+
+
+# In[20]:
+
+
+# change this as you see fit #image_path = sys.argv[1]
+image_path ='testing_images/yes/328_right.jpeg'
+
+# Read in the image_data
+image_data = tf.gfile.FastGFile(image_path, 'rb').read()
+
+# Loads label file, strips off carriage return label_lines = [line.rstrip() for line
+in tf.gfile.GFile("models/retrained_labels.txt")]
+
+# Unpersists graph from file
+with tf.gfile.FastGFile("models/retrained_graph.pb", 'rb') as f: graph_def = tf.GraphDef() graph_def.ParseFromString(f.read())
+_ = tf.import_graph_def(graph_def, name='')
+
+with tf.Session() as sess:
+# Feed the image_data as input to the graph and get first prediction softmax_tensor = sess.graph.get_tensor_by_name('final_result:0')
+predictions = sess.run(softmax_tensor,	{'DecodeJpeg/contents:0': image_data}) # Sort to show labels of first prediction in order of confidence
+top_k = predictions[0].argsort()[-len(predictions[0]):][::-1]
+
+for node_id in top_k:
+human_string = label_lines[node_id] score = predictions[0][node_id]
+print('%s (score = %.5f)' % (human_string, score))
