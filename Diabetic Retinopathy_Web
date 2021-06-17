@@ -1,1 +1,134 @@
+from flask import *  
+app = Flask(__name__)  
+import tensorflow as tf, sys
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior() 
+
+import os
+import sqlite3 as sql
+import base64
+from flask import Flask ,render_template,request,jsonify,session
+from flask import Flask,abort,render_template,request,redirect,url_for
+#from werkzeug import secure_filename
+#Flask Libraries
+from flask import Flask, redirect, url_for, render_template, request
+import requests
+import urllib
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    return render_template('index.html')
+ 
+def validate(username,password):
+    con = sql.connect('static/chat.db')
+    completion = False
+    with con:
+        cur = con.cursor()
+        cur.execute('SELECT * FROM persons')
+        rows = cur.fetchall()
+        for row in rows:
+            dbuser = row[1]
+            dbpass = row[2]
+            if dbuser == username:
+                completion = (dbpass == password)
+    return completion
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        completion = validate(username,password)
+        if completion == False:
+            error = 'invalid Credentials. please try again.'
+        else:
+            session['username'] = request.form['username']
+            return render_template('file_upload_form.html')
+    return render_template('file_upload_form.html', error=error)
+
+    
+@app.route('/register', methods = ['GET','POST'])
+def register():
+    if request.method == 'POST':
+        try:
+            name = request.form['name']
+            username = request.form['username']
+            password = request.form['password']
+            with sql.connect("static/chat.db") as con:
+                cur = con.cursor()
+                cur.execute("INSERT INTO persons(name,username,password) VALUES (?,?,?)",(name,username,password))
+                con.commit()
+                msg = "Record successfully added"
+        except:
+            con.rollback()
+            msg = "error in insert operation"
+        finally:
+            return render_template("index.html",msg = msg)
+            con.close()
+    return render_template('register.html')
+
+
+@app.route('/list')
+def list():
+   con = sql.connect("static/chat.db")
+   con.row_factory = sql.Row
+   
+   cur = con.cursor()
+   cur.execute("select * from persons")
+   
+   rows = cur.fetchall();
+   return render_template("list.html",rows = rows)
+
+    
+@app.route('/upload')  
+def upload():  
+    return render_template("file_upload_form.html")  
+ 
+@app.route('/success', methods = ['POST'])  
+def success():  
+    if request.method == 'POST':  
+        f = request.files['file']
+        # change this as you see fit
+        #image_path = sys.argv[1]
+        image_path =f.filename
+        
+        # Read in the image_data
+        image_data = tf.gfile.FastGFile(r"C:/Users/Charu/ADR/M3/test/"+str(image_path), 'rb').read()
+
+        # Loads label file, strips off carriage return
+        label_lines = [line.rstrip() for line 
+                        in tf.gfile.GFile("models/retrained_labels.txt")]
+
+        # Unpersists graph from file
+        with tf.gfile.FastGFile("models/retrained_graph.pb", 'rb') as f:
+            graph_def = tf.GraphDef()
+            graph_def.ParseFromString(f.read())
+            _ = tf.import_graph_def(graph_def, name='')
+
+        with tf.Session() as sess:
+            # Feed the image_data as input to the graph and get first prediction
+            softmax_tensor = sess.graph.get_tensor_by_name('final_result:0')
+    
+            predictions = sess.run(softmax_tensor, 
+                    {'DecodeJpeg/contents:0': image_data})
+    
+            # Sort to show labels of first prediction in order of confidence
+            top_k = predictions[0].argsort()[-len(predictions[0]):][::-1]
+            print(top_k)
+            m=[]
+            for node_id in top_k:
+                human_string = label_lines[node_id]
+                score = predictions[0][node_id]
+                for j in human_string,score:
+                    print(j)
+                    m.append(j)
+                
+                #print('%s (score = %.5f)' % (human_string, score))
+                
+
+        return render_template("success.html", list2 = m)  
+  
+if __name__ == '__main__':  
+    app.run(debug = True)  
 
